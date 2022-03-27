@@ -24,7 +24,7 @@
     - `php bin/console doctrine:database:create`
     - `php bin/console doctrine:schema:create`
 - Ejecuta el siguiente comando para levantar un entorno:
-    - `php -S localhost:8000 -t public/``
+    - `php -S localhost:8000 -t public/`
 - Accede al backend a través de http://localhost:8000/admin
 
 ## Comentarios adicionales
