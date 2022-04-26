@@ -9,6 +9,7 @@ use App\Entity\Movie;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\ProgressBar;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
@@ -19,7 +20,7 @@ use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
 class ImportCsvCommand extends Command
 {
     protected static $defaultName = 'app:import-csv';
-    private const FILE_DATA_PATH = __DIR__ . '/../../data/IMDb movies.csv';
+    private const FILE_DATA_PATH = __DIR__ . '/../../data/';
 
     public function __construct(EntityManagerInterface $entityManager)
     {
@@ -30,14 +31,18 @@ class ImportCsvCommand extends Command
 
     protected function configure(): void
     {
-        $this->setDescription('Este comando importa dato de un CSV...');
+        $this->addArgument('fileName', InputArgument::REQUIRED, 'Nombre fichero datos');
+
+        $this->setDescription('Este comando importa datos de un CSV...');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
 
-        if (!$this->dataExists()) {
+        $fileName = $input->getArgument('fileName');
+
+        if (!$this->dataExists($fileName)) {
             $io->getErrorStyle()->error('No se ha encontrado el archivo de datos.');
 
             return Command::INVALID;
@@ -104,13 +109,15 @@ class ImportCsvCommand extends Command
     }
 
     /**
-     * Check if data/IMDB movies.csv file exists.
+     * Check if data/filename file exists.
+     *
+     * @param string $fileName
      *
      * @return bool
      */
-    private function dataExists(): bool
+    private function dataExists(string $fileName): bool
     {
-        return file_exists(self::FILE_DATA_PATH);
+        return file_exists(self::FILE_DATA_PATH . $fileName);
     }
 
     /**
