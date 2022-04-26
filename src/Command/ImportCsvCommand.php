@@ -5,7 +5,7 @@ namespace App\Command;
 use App\Entity\Movie;
 use App\Repository\ActorRepository;
 use App\Repository\DirectorRepository;
-use App\Repository\GenreRepository;
+use App\Service\GenreCrudService;
 use App\Repository\MovieRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Command\Command;
@@ -25,7 +25,7 @@ class ImportCsvCommand extends Command
 
     private ActorRepository $actorRepository;
     private DirectorRepository $directorRepository;
-    private GenreRepository $genreRepository;
+    private GenreCrudService $genreService;
     private MovieRepository $movieRepository;
     private EntityManagerInterface $entityManager;
 
@@ -33,7 +33,7 @@ class ImportCsvCommand extends Command
         EntityManagerInterface $entityManager,
         ActorRepository $actorRepository,
         DirectorRepository $directorRepository,
-        GenreRepository $genreRepository,
+        GenreCrudService $genreService,
         MovieRepository $movieRepository
     ) {
         parent::__construct();
@@ -41,7 +41,7 @@ class ImportCsvCommand extends Command
         $this->entityManager = $entityManager;
         $this->actorRepository = $actorRepository;
         $this->directorRepository = $directorRepository;
-        $this->genreRepository = $genreRepository;
+        $this->genreService = $genreService;
         $this->movieRepository = $movieRepository;
     }
 
@@ -79,7 +79,7 @@ class ImportCsvCommand extends Command
         $progressBar->start();
 
         foreach ($films as $key => $film) {
-            $genres = $this->insertOrUpdateRelations($this->genreRepository, $film['genre']);
+            $genres = $this->genreService->importFromCsv($film['genre']);
             $actors = $this->insertOrUpdateRelations($this->actorRepository, $film['actors']);
             $directors = $this->insertOrUpdateRelations($this->directorRepository, $film['director']);
 
@@ -88,9 +88,7 @@ class ImportCsvCommand extends Command
 
             $movie->setTitle($film['title'] ?? '');
             $movie->setPublishDate(new \DateTime($film['date_published'] ?? ''));
-            if (! empty($genres)) {
-                $movie->addGenres($genres);
-            }
+            $movie->addGenres($genres);
             $movie->setDuration($film['duration'] ?? 0);
             $movie->setProducer($film['production_company'] ?? '');
             if (! empty($actors)) {
@@ -151,29 +149,5 @@ class ImportCsvCommand extends Command
         $serializer = new Serializer([new ObjectNormalizer()], [new CsvEncoder()]);
 
         return $serializer->decode(file_get_contents($fileName), 'csv', $context);
-    }
-
-    /**
-     * Insert or update a relation
-     *
-     * @param object $repository
-     * @param string $relation
-     */
-    public function insertOrUpdateRelations(object $repository, string $items)
-    {
-        $name =  $repository->getClassName();
-        $items = explode(',', $items);
-
-        foreach ($items as $item) {
-            $item = trim($item);
-
-            $entity_object = $repository->findOneBy(['name' => $item]) ?: new $name();
-            $entity_object->setName($item);
-
-            $this->entityManager->persist($entity_object);
-            $this->entityManager->flush();
-        }
-
-        return $entity_object ?? null;
     }
 }

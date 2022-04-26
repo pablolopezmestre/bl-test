@@ -98,10 +98,19 @@ class Movie
         return $this->genres;
     }
 
-    public function addGenres(Genre $genres): self
+    public function addGenre(Genre $genres): self
     {
         if (!$this->genres->contains($genres)) {
             $this->genres[] = $genres;
+        }
+
+        return $this;
+    }
+
+    public function addGenres(array $genres): self
+    {
+        foreach ($genres as $genre) {
+            $this->addGenre($genre);
         }
 
         return $this;
