@@ -2,10 +2,11 @@
 
 namespace App\Command;
 
-use App\Entity\Actor;
-use App\Entity\Director;
-use App\Entity\Genre;
 use App\Entity\Movie;
+use App\Repository\ActorRepository;
+use App\Repository\DirectorRepository;
+use App\Repository\GenreRepository;
+use App\Repository\MovieRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\ProgressBar;
@@ -22,11 +23,26 @@ class ImportCsvCommand extends Command
     protected static $defaultName = 'app:import-csv';
     private const FILE_DATA_PATH = __DIR__ . '/../../data/';
 
-    public function __construct(EntityManagerInterface $entityManager)
-    {
-        $this->entityManager = $entityManager;
+    private ActorRepository $actorRepository;
+    private DirectorRepository $directorRepository;
+    private GenreRepository $genreRepository;
+    private MovieRepository $movieRepository;
+    private EntityManagerInterface $entityManager;
 
+    public function __construct(
+        EntityManagerInterface $entityManager,
+        ActorRepository $actorRepository,
+        DirectorRepository $directorRepository,
+        GenreRepository $genreRepository,
+        MovieRepository $movieRepository
+    ) {
         parent::__construct();
+
+        $this->entityManager = $entityManager;
+        $this->actorRepository = $actorRepository;
+        $this->directorRepository = $directorRepository;
+        $this->genreRepository = $genreRepository;
+        $this->movieRepository = $movieRepository;
     }
 
     protected function configure(): void
@@ -50,60 +66,57 @@ class ImportCsvCommand extends Command
 
         $io->title('Importando datos...');
 
-        $movies = $this->parseCSV($fileName);
+        $films = $this->parseCSV($fileName);
+        $em = $this->entityManager;
+        // Having an SQL logger enabled when processing batches can have a serious impact on performance
+        $em->getConnection()->getConfiguration()->setSQLLogger(null);
 
-        $genre_repository = $this->entityManager->getRepository(Genre::class);
-        $actor_repository = $this->entityManager->getRepository(Actor::class);
-        $director_repository = $this->entityManager->getRepository(Director::class);
-        $movie_repository = $this->entityManager->getRepository(Movie::class);
+        $addedMovies = 0;
+        $updatedMovies = 0;
+        $batchSize = 20;
 
-        $added_movies = 0;
-        $updated_movies = 0;
-
-        $progressBar = new ProgressBar($io, count($movies));
+        $progressBar = new ProgressBar($io, count($films));
         $progressBar->start();
 
-        $this->entityManager->getConnection()->getConfiguration()->setSQLLogger(null);
+        foreach ($films as $key => $film) {
+            $genres = $this->insertOrUpdateRelations($this->genreRepository, $film['genre']);
+            $actors = $this->insertOrUpdateRelations($this->actorRepository, $film['actors']);
+            $directors = $this->insertOrUpdateRelations($this->directorRepository, $film['director']);
 
-        foreach ($movies as $movie) {
-            $genres = $this->insertOrUpdateRelations($genre_repository, $movie['genre']);
-            $actors = $this->insertOrUpdateRelations($actor_repository, $movie['actors']);
-            $directors = $this->insertOrUpdateRelations($director_repository, $movie['director']);
+            $movie = $this->movieRepository->findOneBy(['title' => trim($film['title'])]) ?: new Movie();
+            $movie->getId() ? $updatedMovies++ : $addedMovies++;
 
-            $entity_object = $movie_repository->findOneBy(['title' => trim($movie['title'])]) ?: new Movie();
-
-            if ($entity_object->getId()) {
-                $updated_movies++;
-            } else {
-                $added_movies++;
-            }
-
-            $entity_object->setTitle($movie['title'] ?? '');
-            $entity_object->setPublishDate(new \DateTime($movie['date_published'] ?? ''));
+            $movie->setTitle($film['title'] ?? '');
+            $movie->setPublishDate(new \DateTime($film['date_published'] ?? ''));
             if (! empty($genres)) {
-                $entity_object->addGenres($genres);
+                $movie->addGenres($genres);
             }
-            $entity_object->setDuration($movie['duration'] ?? 0);
-            $entity_object->setProducer($movie['production_company'] ?? '');
+            $movie->setDuration($film['duration'] ?? 0);
+            $movie->setProducer($film['production_company'] ?? '');
             if (! empty($actors)) {
-                $entity_object->addActor($actors);
+                $movie->addActor($actors);
             }
             if (! empty($directors)) {
-                $entity_object->addDirector($directors);
+                $movie->addDirector($directors);
             }
 
-            $this->entityManager->persist($entity_object);
-            $this->entityManager->flush();
-            $this->entityManager->clear();
-            unset($entity_object);
-            unset($movie);
+            $em->persist($movie);
+
+            // For performance reasons, batch the SQL queries
+            if (($key % $batchSize) === 0) {
+                $em->flush();
+                $em->clear();
+            }
 
             $progressBar->advance();
         }
 
+        $em->flush();
+        $em->clear();
+
         $progressBar->finish();
 
-        $io->success(sprintf('Se han añadido %d películas y se han actualizado %d.', $added_movies, $updated_movies));
+        $io->success(sprintf('Se han añadido %d películas y se han actualizado %d.', $addedMovies, $updatedMovies));
 
         return Command::SUCCESS;
     }
