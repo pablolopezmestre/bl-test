@@ -164,6 +164,15 @@ class Movie
         return $this;
     }
 
+    public function addActors(array $actors): self
+    {
+        foreach ($actors as $actor) {
+            $this->addActor($actor);
+        }
+
+        return $this;
+    }
+
     public function removeActor(Actor $actor): self
     {
         $this->actors->removeElement($actor);
@@ -188,9 +197,9 @@ class Movie
         return $this;
     }
 
-    public function addDirectors(array $director): self
+    public function addDirectors(array $directors): self
     {
-        foreach ($director as $director) {
+        foreach ($directors as $director) {
             $this->addDirector($director);
         }
 

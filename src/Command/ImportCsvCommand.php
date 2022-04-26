@@ -3,10 +3,10 @@
 namespace App\Command;
 
 use App\Entity\Movie;
-use App\Repository\ActorRepository;
+use App\Repository\MovieRepository;
+use App\Service\ActorCrudService;
 use App\Service\DirectorCrudService;
 use App\Service\GenreCrudService;
-use App\Repository\MovieRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\ProgressBar;
@@ -23,7 +23,7 @@ class ImportCsvCommand extends Command
     protected static $defaultName = 'app:import-csv';
     private const FILE_DATA_PATH = __DIR__ . '/../../data/';
 
-    private ActorRepository $actorRepository;
+    private ActorCrudService $actorService;
     private DirectorCrudService $directorService;
     private GenreCrudService $genreService;
     private MovieRepository $movieRepository;
@@ -31,7 +31,7 @@ class ImportCsvCommand extends Command
 
     public function __construct(
         EntityManagerInterface $entityManager,
-        ActorRepository $actorRepository,
+        ActorCrudService $actorService,
         DirectorCrudService $directorService,
         GenreCrudService $genreService,
         MovieRepository $movieRepository
@@ -39,7 +39,7 @@ class ImportCsvCommand extends Command
         parent::__construct();
 
         $this->entityManager = $entityManager;
-        $this->actorRepository = $actorRepository;
+        $this->actorService = $actorService;
         $this->directorService = $directorService;
         $this->genreService = $genreService;
         $this->movieRepository = $movieRepository;
@@ -79,9 +79,9 @@ class ImportCsvCommand extends Command
         $progressBar->start();
 
         foreach ($films as $key => $film) {
-            $genres = $this->genreService->importFromCsv($film['genre']);
+            $actors = $this->actorService->importFromCsv($film['actors']);
             $directors = $this->directorService->importFromCsv($film['director']);
-            $actors = $this->insertOrUpdateRelations($this->actorRepository, $film['actors']);
+            $genres = $this->genreService->importFromCsv($film['genre']);
 
             $movie = $this->movieRepository->findOneBy(['title' => trim($film['title'])]) ?: new Movie();
             $movie->getId() ? $updatedMovies++ : $addedMovies++;
@@ -91,10 +91,8 @@ class ImportCsvCommand extends Command
             $movie->addGenres($genres);
             $movie->setDuration($film['duration'] ?? 0);
             $movie->setProducer($film['production_company'] ?? '');
-            if (! empty($actors)) {
-                $movie->addActor($actors);
-            }
-            $movie->addDirector($directors);
+            $movie->addActors($actors);
+            $movie->addDirectors($directors);
 
             $em->persist($movie);
 
