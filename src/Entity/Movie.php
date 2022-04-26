@@ -188,6 +188,15 @@ class Movie
         return $this;
     }
 
+    public function addDirectors(array $director): self
+    {
+        foreach ($director as $director) {
+            $this->addDirector($director);
+        }
+
+        return $this;
+    }
+
     public function removeDirector(Director $director): self
     {
         $this->directors->removeElement($director);

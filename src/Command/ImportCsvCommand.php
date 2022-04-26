@@ -4,7 +4,7 @@ namespace App\Command;
 
 use App\Entity\Movie;
 use App\Repository\ActorRepository;
-use App\Repository\DirectorRepository;
+use App\Service\DirectorCrudService;
 use App\Service\GenreCrudService;
 use App\Repository\MovieRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -24,7 +24,7 @@ class ImportCsvCommand extends Command
     private const FILE_DATA_PATH = __DIR__ . '/../../data/';
 
     private ActorRepository $actorRepository;
-    private DirectorRepository $directorRepository;
+    private DirectorCrudService $directorService;
     private GenreCrudService $genreService;
     private MovieRepository $movieRepository;
     private EntityManagerInterface $entityManager;
@@ -32,7 +32,7 @@ class ImportCsvCommand extends Command
     public function __construct(
         EntityManagerInterface $entityManager,
         ActorRepository $actorRepository,
-        DirectorRepository $directorRepository,
+        DirectorCrudService $directorService,
         GenreCrudService $genreService,
         MovieRepository $movieRepository
     ) {
@@ -40,7 +40,7 @@ class ImportCsvCommand extends Command
 
         $this->entityManager = $entityManager;
         $this->actorRepository = $actorRepository;
-        $this->directorRepository = $directorRepository;
+        $this->directorService = $directorService;
         $this->genreService = $genreService;
         $this->movieRepository = $movieRepository;
     }
@@ -80,8 +80,8 @@ class ImportCsvCommand extends Command
 
         foreach ($films as $key => $film) {
             $genres = $this->genreService->importFromCsv($film['genre']);
+            $directors = $this->directorService->importFromCsv($film['director']);
             $actors = $this->insertOrUpdateRelations($this->actorRepository, $film['actors']);
-            $directors = $this->insertOrUpdateRelations($this->directorRepository, $film['director']);
 
             $movie = $this->movieRepository->findOneBy(['title' => trim($film['title'])]) ?: new Movie();
             $movie->getId() ? $updatedMovies++ : $addedMovies++;
@@ -94,9 +94,7 @@ class ImportCsvCommand extends Command
             if (! empty($actors)) {
                 $movie->addActor($actors);
             }
-            if (! empty($directors)) {
-                $movie->addDirector($directors);
-            }
+            $movie->addDirector($directors);
 
             $em->persist($movie);
 
