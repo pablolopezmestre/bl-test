@@ -40,7 +40,7 @@ class ImportCsvCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
-        $fileName = $input->getArgument('fileName');
+        $fileName = self::FILE_DATA_PATH . $input->getArgument('fileName');
 
         if (!$this->dataExists($fileName)) {
             $io->getErrorStyle()->error('No se ha encontrado el archivo de datos.');
@@ -50,7 +50,7 @@ class ImportCsvCommand extends Command
 
         $io->title('Importando datos...');
 
-        $movies = $this->parseCSV();
+        $movies = $this->parseCSV($fileName);
 
         $genre_repository = $this->entityManager->getRepository(Genre::class);
         $actor_repository = $this->entityManager->getRepository(Actor::class);
@@ -111,21 +111,23 @@ class ImportCsvCommand extends Command
     /**
      * Check if data/filename file exists.
      *
-     * @param string $fileName
+     * @param string $fileName 
      *
      * @return bool
      */
     private function dataExists(string $fileName): bool
     {
-        return file_exists(self::FILE_DATA_PATH . $fileName);
+        return file_exists($fileName);
     }
 
     /**
      * Parse a csv file
      *
+     * @param string $fileName
+     *
      * @return array
      */
-    private function parseCSV(): array
+    private function parseCSV(string $fileName): array
     {
         $context = [
             CsvEncoder::DELIMITER_KEY => ',',
@@ -135,7 +137,7 @@ class ImportCsvCommand extends Command
 
         $serializer = new Serializer([new ObjectNormalizer()], [new CsvEncoder()]);
 
-        return $serializer->decode(file_get_contents(self::FILE_DATA_PATH), 'csv', $context);
+        return $serializer->decode(file_get_contents($fileName), 'csv', $context);
     }
 
     /**
